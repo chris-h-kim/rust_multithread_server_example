@@ -1,16 +1,16 @@
-use std::thread;
 use std::sync::mpsc;
 use std::sync::Arc; // Will let multiple workers own the receiver
 use std::sync::Mutex; // Ensure that only one worker gets a job from the receiver at a time
+use std::thread; 
 
 enum Message {
     NewJob(Job),
-    Terminate
+    Terminate,
 }
 
 pub struct ThreadPool {
     workers: Vec<Worker>,
-    sender: mpsc::Sender<Message>
+    sender: mpsc::Sender<Message>,
 }
 
 trait FnBox {
@@ -33,7 +33,8 @@ impl ThreadPool {
     /// # Panics
     ///
     /// The `new` function will panic if the size is zero
-    pub fn new(size: usize) -> ThreadPool { // using unsigned Int because it doesn't make sense to have negative threads
+    pub fn new(size: usize) -> ThreadPool {
+        // using unsigned Int because it doesn't make sense to have negative threads
         assert!(size > 0);
 
         let (sender, receiver) = mpsc::channel();
@@ -44,17 +45,14 @@ impl ThreadPool {
         for id in 0..size {
             // create some threads and store them in the vector
             workers.push(Worker::new(id, Arc::clone(&receiver))); // For each new worker, we clone Arc to bump the ref count
-                                                                 // so the workers can share ownership of the receiving end
+                                                                  // so the workers can share ownership of the receiving end
         }
-        ThreadPool {
-            workers,
-            sender,
-        }
+        ThreadPool { workers, sender }
     }
-    
+
     pub fn execute<F>(&self, f: F)
-        where
-            F: FnOnce() + Send + 'static
+    where
+        F: FnOnce() + Send + 'static,
     {
         let job = Box::new(f); // f executes closure.
 
@@ -87,24 +85,27 @@ struct Worker {
 }
 
 impl Worker {
-    fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Message>>>) -> Worker { // put receiving end of the channel in Arc and Mutex
+    fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Message>>>) -> Worker {
+        // put receiving end of the channel in Arc and Mutex
         let thread = thread::spawn(move || {
             loop {
                 let message = receiver
-                    .lock().unwrap() // Call lock to acquire a Mutex and 
-                    .recv().unwrap(); // Receive a job from the channel
+                    .lock() // Call lock to acquire a Mutex and
+                    .unwrap() 
+                    .recv() // Receive a job from the channel
+                    .unwrap(); 
 
                 match message {
                     Message::NewJob(job) => {
                         println!("Worker {} got a job; executing.", id);
 
                         job.call_box();
-                    },
+                    }
                     Message::Terminate => {
                         println!("Worker {} was told to terminate.", id);
 
                         break;
-                    },
+                    }
                 }
             }
         });
