@@ -87,7 +87,7 @@ struct Worker {
 }
 
 impl Worker {
-    fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Message>>>) -> Worker { // put receiving end of the channel in Arc and Mutex'
+    fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Message>>>) -> Worker { // put receiving end of the channel in Arc and Mutex
         let thread = thread::spawn(move || {
             loop {
                 let message = receiver
