@@ -8,7 +8,17 @@ pub struct ThreadPool {
     sender: mpsc::Sender<Job>
 }
 
-struct Job;
+trait FnBox {
+    fn call_box(self: Box<Self>);
+}
+
+impl<F: FnOnce()> FnBox for F {
+    fn call_box(self: Box<F>) {
+        (*self)() // Moves the closure out of Box<T> and calls the closure
+    }
+}
+
+type Job = Box<dyn FnBox + Send + 'static>; // type alias that holds the type of closure that execute receives
 
 impl ThreadPool {
     /// Create a new ThreadPool
@@ -41,7 +51,9 @@ impl ThreadPool {
         where
             F: FnOnce() + Send + 'static
     {
+        let job = Box::new(f); // f executes closure.
 
+        self.sender.send(job).unwrap(); // send job down to the end of the channel
     }
 }
 
@@ -52,7 +64,17 @@ struct Worker {
 
 impl Worker {
     fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker { // put receiving end of the channel in Arc and Mutex'
-        let thread = thread::spawn(|| {});
+        let thread = thread::spawn(move || {
+            loop {
+                let job = receiver
+                    .lock().unwrap() // Call lock to acquire a Mutex and 
+                    .recv().unwrap(); // Receive a job from the channel
+
+                println!("Worker {} got a job; executing.", id);
+
+                job.call_box();
+            }
+        });
 
         Worker {
             id,
